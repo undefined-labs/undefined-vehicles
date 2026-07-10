@@ -1,5 +1,6 @@
 export * from '../shared'
 export * from './events/vehicles-events'
+export * from './policies/random-plate.policy'
 export * from './services/vehicles'
 export * from './module/vehicles.module'
 export * from './plugin'
