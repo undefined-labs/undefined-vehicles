@@ -1,11 +1,21 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { VehicleStoreContract } from '../src/shared'
+import { PlateGeneratorPolicyContract, VehicleStoreContract } from '../src/shared'
 import { VehiclesModule } from '../src/server/module/vehicles.module'
 import { vehiclesServerPlugin } from '../src/server/plugin/vehicles.plugin'
+
+class FixedPlatePolicy extends PlateGeneratorPolicyContract {
+  generatePlate(): string {
+    return 'FIXED001'
+  }
+}
 
 class InMemoryStore extends VehicleStoreContract {
   async getById(): Promise<any> {
     return null
+  }
+
+  async plateExists(): Promise<boolean> {
+    return false
   }
 
   async create(): Promise<void> {}
@@ -47,5 +57,34 @@ describe('vehiclesServerPlugin', () => {
     expect(installSpy).toHaveBeenCalledWith({
       bridgeExternalEvents: undefined,
     })
+  })
+
+  it('forwards a custom plate generator policy to VehiclesModule', async () => {
+    vi.spyOn(VehiclesModule, 'setStore').mockImplementation(() => undefined)
+    vi.spyOn(VehiclesModule, 'install').mockImplementation(() => undefined)
+    const setPlateGeneratorSpy = vi
+      .spyOn(VehiclesModule, 'setPlateGenerator')
+      .mockImplementation(() => undefined)
+
+    const plateGenerator = new FixedPlatePolicy()
+    const plugin = vehiclesServerPlugin({ store: InMemoryStore, plateGenerator })
+
+    await plugin.install({} as any)
+
+    expect(setPlateGeneratorSpy).toHaveBeenCalledWith(plateGenerator)
+  })
+
+  it('leaves the default plate policy in place when none is supplied', async () => {
+    vi.spyOn(VehiclesModule, 'setStore').mockImplementation(() => undefined)
+    vi.spyOn(VehiclesModule, 'install').mockImplementation(() => undefined)
+    const setPlateGeneratorSpy = vi
+      .spyOn(VehiclesModule, 'setPlateGenerator')
+      .mockImplementation(() => undefined)
+
+    const plugin = vehiclesServerPlugin({ store: InMemoryStore })
+
+    await plugin.install({} as any)
+
+    expect(setPlateGeneratorSpy).not.toHaveBeenCalled()
   })
 })

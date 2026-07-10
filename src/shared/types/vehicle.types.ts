@@ -15,7 +15,8 @@ export interface OwnerContext {
 export interface VehicleCreateInput {
   owner: OwnerContext
   model: string
-  plate: string
+  /** Honored as-is when supplied; otherwise a unique plate is generated. */
+  plate?: string
 }
 
 export interface SerializedVehicle {
