@@ -7,5 +7,6 @@ import { VehicleId } from '../types/ids'
  */
 export abstract class VehicleStoreContract {
   abstract getById(vehicleId: VehicleId): Promise<Vehicle | null>
+  abstract plateExists(plate: string): Promise<boolean>
   abstract create(vehicle: Vehicle): Promise<void>
 }
