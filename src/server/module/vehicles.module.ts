@@ -1,6 +1,7 @@
 import { GLOBAL_CONTAINER } from '@open-core/framework'
-import { VehicleStoreContract } from '../../shared'
+import { PlateGeneratorPolicyContract, VehicleStoreContract } from '../../shared'
 import { configureVehiclesEvents } from '../events/vehicles-events'
+import { RandomPlatePolicy } from '../policies/random-plate.policy'
 import { Vehicles } from '../services/vehicles'
 
 type Constructor<T> = new (...args: any[]) => T
@@ -14,6 +15,7 @@ export interface VehiclesModuleInstallOptions {
  *
  * @remarks
  * - Requires a VehicleStoreContract implementation provided by the integrator.
+ * - Registers the default plate policy when one is not already provided.
  * - Registers the Vehicles service once and keeps installation idempotent.
  */
 export class VehiclesModule {
@@ -30,6 +32,19 @@ export class VehiclesModule {
     container.register(VehicleStoreContract as any, { useValue: provider })
   }
 
+  static setPlateGenerator(
+    provider: PlateGeneratorPolicyContract | Constructor<PlateGeneratorPolicyContract>,
+  ): void {
+    const container = this.getContainer()
+
+    if (typeof provider === 'function') {
+      container.registerSingleton(PlateGeneratorPolicyContract as any, provider)
+      return
+    }
+
+    container.register(PlateGeneratorPolicyContract as any, { useValue: provider })
+  }
+
   static install(options?: VehiclesModuleInstallOptions): void {
     const container = this.getContainer()
 
@@ -41,6 +56,12 @@ export class VehiclesModule {
       throw new Error(
         'VehiclesModule requires a VehicleStoreContract provider. Use VehiclesModule.setStore(...) before install().',
       )
+    }
+
+    if (!container.isRegistered(PlateGeneratorPolicyContract as any)) {
+      container.register(PlateGeneratorPolicyContract as any, {
+        useValue: new RandomPlatePolicy(),
+      })
     }
 
     if (!container.isRegistered(Vehicles)) {
