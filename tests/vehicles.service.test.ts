@@ -4,14 +4,32 @@ import { VehicleStoreContract } from '../src/shared/contracts/vehicle-store.cont
 import { VehiclesError } from '../src/shared/errors'
 import { VehiclesEvents } from '../src/server/events/vehicles-events'
 import { PlateGeneratorPolicyContract } from '../src/shared/contracts/plate-generator-policy.contract'
+import { VehicleListFilters } from '../src/shared/types/vehicle.types'
 import { RandomPlatePolicy } from '../src/server/policies/random-plate.policy'
 import { Vehicles } from '../src/server/services/vehicles'
 
 class InMemoryVehicleStore extends VehicleStoreContract {
   private readonly vehicles = new Map<string, Vehicle>()
 
+  async list(filters: VehicleListFilters): Promise<Vehicle[]> {
+    return [...this.vehicles.values()].filter(
+      (vehicle) =>
+        (filters.characterId === undefined || vehicle.characterId === filters.characterId) &&
+        (filters.accountId === undefined || vehicle.accountId === filters.accountId),
+    )
+  }
+
   async getById(vehicleId: string): Promise<Vehicle | null> {
     return this.vehicles.get(vehicleId) ?? null
+  }
+
+  async getByPlate(plate: string): Promise<Vehicle | null> {
+    for (const vehicle of this.vehicles.values()) {
+      if (vehicle.plate === plate) {
+        return vehicle
+      }
+    }
+    return null
   }
 
   async plateExists(plate: string): Promise<boolean> {
@@ -207,6 +225,88 @@ describe('VehiclesService', () => {
     })
 
     expect(vehicle.plate).toBe('THEME-01')
+  })
+
+  it('lists vehicles owned by a character', async () => {
+    const store = new InMemoryVehicleStore()
+    const service = new Vehicles(store, new RandomPlatePolicy())
+
+    const mine = await service.create({ owner: { characterId: 'char:1' }, model: 'sultan' })
+    await service.create({ owner: { characterId: 'char:2' }, model: 'blista' })
+
+    const vehicles = await service.list({ characterId: 'char:1' })
+    expect(vehicles.map((vehicle) => vehicle.id)).toEqual([mine.id])
+  })
+
+  it('lists vehicles owned by an account', async () => {
+    const store = new InMemoryVehicleStore()
+    const service = new Vehicles(store, new RandomPlatePolicy())
+
+    const first = await service.create({
+      owner: { characterId: 'char:1', accountId: 'acc:1' },
+      model: 'sultan',
+    })
+    const second = await service.create({
+      owner: { characterId: 'char:2', accountId: 'acc:1' },
+      model: 'blista',
+    })
+    await service.create({ owner: { accountId: 'acc:2' }, model: 'futo' })
+
+    const vehicles = await service.list({ accountId: 'acc:1' })
+    expect(vehicles.map((vehicle) => vehicle.id).sort()).toEqual([first.id, second.id].sort())
+  })
+
+  it('lists all vehicles when the filter is empty', async () => {
+    const store = new InMemoryVehicleStore()
+    const service = new Vehicles(store, new RandomPlatePolicy())
+
+    await service.create({ owner: { characterId: 'char:1' }, model: 'sultan' })
+    await service.create({ owner: { accountId: 'acc:1' }, model: 'blista' })
+
+    await expect(service.list()).resolves.toHaveLength(2)
+    await expect(service.list({})).resolves.toHaveLength(2)
+  })
+
+  it('returns an empty list when no vehicle matches the filter', async () => {
+    const store = new InMemoryVehicleStore()
+    const service = new Vehicles(store, new RandomPlatePolicy())
+
+    await service.create({ owner: { characterId: 'char:1' }, model: 'sultan' })
+
+    await expect(service.list({ characterId: 'char:none' })).resolves.toEqual([])
+  })
+
+  it('requires every supplied filter field to match', async () => {
+    const store = new InMemoryVehicleStore()
+    const service = new Vehicles(store, new RandomPlatePolicy())
+
+    await service.create({ owner: { characterId: 'char:1', accountId: 'acc:1' }, model: 'sultan' })
+
+    await expect(
+      service.list({ characterId: 'char:1', accountId: 'acc:2' }),
+    ).resolves.toEqual([])
+  })
+
+  it('resolves a plate to its vehicle record', async () => {
+    const store = new InMemoryVehicleStore()
+    const service = new Vehicles(store, new RandomPlatePolicy())
+
+    const created = await service.create({
+      owner: { characterId: 'char:1' },
+      model: 'sultan',
+      plate: 'ABC12345',
+    })
+
+    const found = await service.getByPlate('ABC12345')
+    expect(found).not.toBeNull()
+    expect(found!.id).toBe(created.id)
+  })
+
+  it('returns null for an unknown plate', async () => {
+    const store = new InMemoryVehicleStore()
+    const service = new Vehicles(store, new RandomPlatePolicy())
+
+    await expect(service.getByPlate('NOPE0000')).resolves.toBeNull()
   })
 
   it('raises a typed error when no unique plate can be generated', async () => {
