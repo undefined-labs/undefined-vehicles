@@ -4,7 +4,7 @@ import { VehiclesError } from '../../shared/errors'
 import { VehicleStoreContract } from '../../shared/contracts/vehicle-store.contract'
 import { PlateGeneratorPolicyContract } from '../../shared/contracts/plate-generator-policy.contract'
 import { createVehicleId } from '../../shared/utils/create-vehicle-id'
-import { VehicleCreateInput } from '../../shared/types/vehicle.types'
+import { VehicleCreateInput, VehicleListFilters } from '../../shared/types/vehicle.types'
 import { VehicleId } from '../../shared/types/ids'
 import { emitVehiclesCreated } from '../events/vehicles-events'
 
@@ -54,10 +54,25 @@ export class Vehicles {
   }
 
   /**
+   * Returns vehicles matching every supplied filter field.
+   * An empty filter returns all vehicles.
+   */
+  async list(filters: VehicleListFilters = {}): Promise<Vehicle[]> {
+    return this.store.list(filters)
+  }
+
+  /**
    * Returns the vehicle with the given id, or null when it does not exist.
    */
   async getById(vehicleId: VehicleId): Promise<Vehicle | null> {
     return this.store.getById(vehicleId)
+  }
+
+  /**
+   * Returns the vehicle with the given plate, or null when it does not exist.
+   */
+  async getByPlate(plate: string): Promise<Vehicle | null> {
+    return this.store.getByPlate(plate)
   }
 
   /**

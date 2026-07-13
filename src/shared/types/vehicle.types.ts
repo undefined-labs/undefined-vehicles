@@ -12,6 +12,15 @@ export interface OwnerContext {
   accountId?: AccountId
 }
 
+/**
+ * Selects vehicles by owner keys. All supplied fields must match;
+ * an empty filter matches every vehicle.
+ */
+export interface VehicleListFilters {
+  characterId?: CharacterId
+  accountId?: AccountId
+}
+
 export interface VehicleCreateInput {
   owner: OwnerContext
   model: string

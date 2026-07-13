@@ -10,7 +10,15 @@ class FixedPlatePolicy extends PlateGeneratorPolicyContract {
 }
 
 class InMemoryStore extends VehicleStoreContract {
+  async list(): Promise<any[]> {
+    return []
+  }
+
   async getById(): Promise<any> {
+    return null
+  }
+
+  async getByPlate(): Promise<any> {
     return null
   }
 

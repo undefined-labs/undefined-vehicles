@@ -6,8 +6,21 @@ import { VehiclesModule } from '../src/server/module/vehicles.module'
 class InMemoryVehicleStore extends VehicleStoreContract {
   private readonly vehicles = new Map<string, Vehicle>()
 
+  async list(): Promise<Vehicle[]> {
+    return [...this.vehicles.values()]
+  }
+
   async getById(vehicleId: string): Promise<Vehicle | null> {
     return this.vehicles.get(vehicleId) ?? null
+  }
+
+  async getByPlate(plate: string): Promise<Vehicle | null> {
+    for (const vehicle of this.vehicles.values()) {
+      if (vehicle.plate === plate) {
+        return vehicle
+      }
+    }
+    return null
   }
 
   async plateExists(plate: string): Promise<boolean> {
