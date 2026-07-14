@@ -12,4 +12,5 @@ export abstract class VehicleStoreContract {
   abstract getByPlate(plate: string): Promise<Vehicle | null>
   abstract plateExists(plate: string): Promise<boolean>
   abstract create(vehicle: Vehicle): Promise<void>
+  abstract update(vehicle: Vehicle): Promise<void>
 }

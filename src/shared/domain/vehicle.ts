@@ -60,6 +60,21 @@ export class Vehicle {
     }
   }
 
+  /**
+   * Rewrites the given owner fields in place and bumps `updatedAt`.
+   * Only fields present as keys on `owner` are touched, so a policy can
+   * rewrite a single owner key without clobbering the other.
+   */
+  setOwner(owner: Partial<OwnerContext>): void {
+    if ('characterId' in owner) {
+      this._characterId = owner.characterId
+    }
+    if ('accountId' in owner) {
+      this._accountId = owner.accountId
+    }
+    this._updatedAt = new Date()
+  }
+
   serialize(): SerializedVehicle {
     return {
       id: this.id,

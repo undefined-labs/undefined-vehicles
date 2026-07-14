@@ -1,7 +1,12 @@
 import { GLOBAL_CONTAINER } from '@open-core/framework'
-import { PlateGeneratorPolicyContract, VehicleStoreContract } from '../../shared'
+import {
+  OwnershipPolicyContract,
+  PlateGeneratorPolicyContract,
+  VehicleStoreContract,
+} from '../../shared'
 import { configureVehiclesEvents } from '../events/vehicles-events'
 import { RandomPlatePolicy } from '../policies/random-plate.policy'
+import { CharacterOwnershipPolicy } from '../policies/character-ownership.policy'
 import { Vehicles } from '../services/vehicles'
 
 type Constructor<T> = new (...args: any[]) => T
@@ -45,6 +50,19 @@ export class VehiclesModule {
     container.register(PlateGeneratorPolicyContract as any, { useValue: provider })
   }
 
+  static setOwnershipPolicy(
+    provider: OwnershipPolicyContract | Constructor<OwnershipPolicyContract>,
+  ): void {
+    const container = this.getContainer()
+
+    if (typeof provider === 'function') {
+      container.registerSingleton(OwnershipPolicyContract as any, provider)
+      return
+    }
+
+    container.register(OwnershipPolicyContract as any, { useValue: provider })
+  }
+
   static install(options?: VehiclesModuleInstallOptions): void {
     const container = this.getContainer()
 
@@ -61,6 +79,12 @@ export class VehiclesModule {
     if (!container.isRegistered(PlateGeneratorPolicyContract as any)) {
       container.register(PlateGeneratorPolicyContract as any, {
         useValue: new RandomPlatePolicy(),
+      })
+    }
+
+    if (!container.isRegistered(OwnershipPolicyContract as any)) {
+      container.register(OwnershipPolicyContract as any, {
+        useValue: new CharacterOwnershipPolicy(),
       })
     }
 

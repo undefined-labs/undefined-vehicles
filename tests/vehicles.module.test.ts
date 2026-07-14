@@ -35,6 +35,10 @@ class InMemoryVehicleStore extends VehicleStoreContract {
   async create(vehicle: Vehicle): Promise<void> {
     this.vehicles.set(vehicle.id, vehicle)
   }
+
+  async update(vehicle: Vehicle): Promise<void> {
+    this.vehicles.set(vehicle.id, vehicle)
+  }
 }
 
 describe('VehiclesModule', () => {
@@ -49,5 +53,19 @@ describe('VehiclesModule', () => {
     })
 
     expect(vehicle.plate).toMatch(/^[A-Z0-9]{8}$/)
+  })
+
+  it('binds CharacterOwnershipPolicy by default and resolves isOwnedBy through DI', async () => {
+    VehiclesModule.setStore(new InMemoryVehicleStore())
+    VehiclesModule.install()
+
+    const service = VehiclesModule.resolveService()
+    const vehicle = await service.create({
+      owner: { characterId: 'char:1', accountId: 'acc:1' },
+      model: 'sultan',
+    })
+
+    expect(service.isOwnedBy(vehicle, { characterId: 'char:1' })).toBe(true)
+    expect(service.isOwnedBy(vehicle, { characterId: 'char:2' })).toBe(false)
   })
 })

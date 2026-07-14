@@ -6,6 +6,9 @@ import { VehiclesEvents } from '../src/server/events/vehicles-events'
 import { PlateGeneratorPolicyContract } from '../src/shared/contracts/plate-generator-policy.contract'
 import { VehicleListFilters } from '../src/shared/types/vehicle.types'
 import { RandomPlatePolicy } from '../src/server/policies/random-plate.policy'
+import { CharacterOwnershipPolicy } from '../src/server/policies/character-ownership.policy'
+import { AccountOwnershipPolicy } from '../src/server/policies/account-ownership.policy'
+import { BothMatchOwnershipPolicy } from '../src/server/policies/both-match-ownership.policy'
 import { Vehicles } from '../src/server/services/vehicles'
 
 class InMemoryVehicleStore extends VehicleStoreContract {
@@ -44,6 +47,10 @@ class InMemoryVehicleStore extends VehicleStoreContract {
   async create(vehicle: Vehicle): Promise<void> {
     this.vehicles.set(vehicle.id, vehicle)
   }
+
+  async update(vehicle: Vehicle): Promise<void> {
+    this.vehicles.set(vehicle.id, vehicle)
+  }
 }
 
 /** Deterministic generator returning the given plates in order. */
@@ -64,7 +71,7 @@ class QueuedPlatePolicy extends PlateGeneratorPolicyContract {
 describe('VehiclesService', () => {
   it('creates a vehicle with a library-generated string id', async () => {
     const store = new InMemoryVehicleStore()
-    const service = new Vehicles(store, new RandomPlatePolicy())
+    const service = new Vehicles(store, new RandomPlatePolicy(), new CharacterOwnershipPolicy())
 
     const vehicle = await service.create({
       owner: { characterId: 'char:1' },
@@ -81,7 +88,7 @@ describe('VehiclesService', () => {
 
   it('persists the created vehicle through the store contract', async () => {
     const store = new InMemoryVehicleStore()
-    const service = new Vehicles(store, new RandomPlatePolicy())
+    const service = new Vehicles(store, new RandomPlatePolicy(), new CharacterOwnershipPolicy())
 
     const vehicle = await service.create({
       owner: { accountId: 'acc:1' },
@@ -97,7 +104,7 @@ describe('VehiclesService', () => {
 
   it('reads a previously created vehicle back by id', async () => {
     const store = new InMemoryVehicleStore()
-    const service = new Vehicles(store, new RandomPlatePolicy())
+    const service = new Vehicles(store, new RandomPlatePolicy(), new CharacterOwnershipPolicy())
 
     const created = await service.create({
       owner: { characterId: 'char:1', accountId: 'acc:1' },
@@ -113,14 +120,14 @@ describe('VehiclesService', () => {
 
   it('returns null for an unknown vehicle id', async () => {
     const store = new InMemoryVehicleStore()
-    const service = new Vehicles(store, new RandomPlatePolicy())
+    const service = new Vehicles(store, new RandomPlatePolicy(), new CharacterOwnershipPolicy())
 
     await expect(service.getById('veh_unknown')).resolves.toBeNull()
   })
 
   it('emits created event after the write commits', async () => {
     const store = new InMemoryVehicleStore()
-    const service = new Vehicles(store, new RandomPlatePolicy())
+    const service = new Vehicles(store, new RandomPlatePolicy(), new CharacterOwnershipPolicy())
 
     let persistedAtEmitTime: Vehicle | null = null
     const handler = vi.fn(async (event?: { vehicle: Vehicle }) => {
@@ -145,7 +152,7 @@ describe('VehiclesService', () => {
 
   it('raises a typed error when model is missing', async () => {
     const store = new InMemoryVehicleStore()
-    const service = new Vehicles(store, new RandomPlatePolicy())
+    const service = new Vehicles(store, new RandomPlatePolicy(), new CharacterOwnershipPolicy())
 
     await expect(
       service.create({
@@ -158,7 +165,7 @@ describe('VehiclesService', () => {
 
   it('generates a plate when none is supplied', async () => {
     const store = new InMemoryVehicleStore()
-    const service = new Vehicles(store, new RandomPlatePolicy())
+    const service = new Vehicles(store, new RandomPlatePolicy(), new CharacterOwnershipPolicy())
 
     const vehicle = await service.create({
       owner: { characterId: 'char:1' },
@@ -170,7 +177,7 @@ describe('VehiclesService', () => {
 
   it('generates distinct plates across creates with no supplied plate', async () => {
     const store = new InMemoryVehicleStore()
-    const service = new Vehicles(store, new RandomPlatePolicy())
+    const service = new Vehicles(store, new RandomPlatePolicy(), new CharacterOwnershipPolicy())
 
     const plates = new Set<string>()
     for (let i = 0; i < 25; i++) {
@@ -186,7 +193,7 @@ describe('VehiclesService', () => {
 
   it('honors a supplied plate as-is', async () => {
     const store = new InMemoryVehicleStore()
-    const service = new Vehicles(store, new RandomPlatePolicy())
+    const service = new Vehicles(store, new RandomPlatePolicy(), new CharacterOwnershipPolicy())
 
     const vehicle = await service.create({
       owner: { characterId: 'char:1' },
@@ -199,7 +206,7 @@ describe('VehiclesService', () => {
 
   it('retries generation until the plate is unique on a first collision', async () => {
     const store = new InMemoryVehicleStore()
-    const service = new Vehicles(store, new QueuedPlatePolicy(['TAKEN001', 'FRESH001']))
+    const service = new Vehicles(store, new QueuedPlatePolicy(['TAKEN001', 'FRESH001']), new CharacterOwnershipPolicy())
 
     await service.create({
       owner: { characterId: 'char:1' },
@@ -217,7 +224,7 @@ describe('VehiclesService', () => {
 
   it('uses an injected custom generator policy in place of the default', async () => {
     const store = new InMemoryVehicleStore()
-    const service = new Vehicles(store, new QueuedPlatePolicy(['THEME-01']))
+    const service = new Vehicles(store, new QueuedPlatePolicy(['THEME-01']), new CharacterOwnershipPolicy())
 
     const vehicle = await service.create({
       owner: { characterId: 'char:1' },
@@ -229,7 +236,7 @@ describe('VehiclesService', () => {
 
   it('lists vehicles owned by a character', async () => {
     const store = new InMemoryVehicleStore()
-    const service = new Vehicles(store, new RandomPlatePolicy())
+    const service = new Vehicles(store, new RandomPlatePolicy(), new CharacterOwnershipPolicy())
 
     const mine = await service.create({ owner: { characterId: 'char:1' }, model: 'sultan' })
     await service.create({ owner: { characterId: 'char:2' }, model: 'blista' })
@@ -240,7 +247,7 @@ describe('VehiclesService', () => {
 
   it('lists vehicles owned by an account', async () => {
     const store = new InMemoryVehicleStore()
-    const service = new Vehicles(store, new RandomPlatePolicy())
+    const service = new Vehicles(store, new RandomPlatePolicy(), new CharacterOwnershipPolicy())
 
     const first = await service.create({
       owner: { characterId: 'char:1', accountId: 'acc:1' },
@@ -258,7 +265,7 @@ describe('VehiclesService', () => {
 
   it('lists all vehicles when the filter is empty', async () => {
     const store = new InMemoryVehicleStore()
-    const service = new Vehicles(store, new RandomPlatePolicy())
+    const service = new Vehicles(store, new RandomPlatePolicy(), new CharacterOwnershipPolicy())
 
     await service.create({ owner: { characterId: 'char:1' }, model: 'sultan' })
     await service.create({ owner: { accountId: 'acc:1' }, model: 'blista' })
@@ -269,7 +276,7 @@ describe('VehiclesService', () => {
 
   it('returns an empty list when no vehicle matches the filter', async () => {
     const store = new InMemoryVehicleStore()
-    const service = new Vehicles(store, new RandomPlatePolicy())
+    const service = new Vehicles(store, new RandomPlatePolicy(), new CharacterOwnershipPolicy())
 
     await service.create({ owner: { characterId: 'char:1' }, model: 'sultan' })
 
@@ -278,7 +285,7 @@ describe('VehiclesService', () => {
 
   it('requires every supplied filter field to match', async () => {
     const store = new InMemoryVehicleStore()
-    const service = new Vehicles(store, new RandomPlatePolicy())
+    const service = new Vehicles(store, new RandomPlatePolicy(), new CharacterOwnershipPolicy())
 
     await service.create({ owner: { characterId: 'char:1', accountId: 'acc:1' }, model: 'sultan' })
 
@@ -289,7 +296,7 @@ describe('VehiclesService', () => {
 
   it('resolves a plate to its vehicle record', async () => {
     const store = new InMemoryVehicleStore()
-    const service = new Vehicles(store, new RandomPlatePolicy())
+    const service = new Vehicles(store, new RandomPlatePolicy(), new CharacterOwnershipPolicy())
 
     const created = await service.create({
       owner: { characterId: 'char:1' },
@@ -304,14 +311,14 @@ describe('VehiclesService', () => {
 
   it('returns null for an unknown plate', async () => {
     const store = new InMemoryVehicleStore()
-    const service = new Vehicles(store, new RandomPlatePolicy())
+    const service = new Vehicles(store, new RandomPlatePolicy(), new CharacterOwnershipPolicy())
 
     await expect(service.getByPlate('NOPE0000')).resolves.toBeNull()
   })
 
   it('raises a typed error when no unique plate can be generated', async () => {
     const store = new InMemoryVehicleStore()
-    const service = new Vehicles(store, new QueuedPlatePolicy(['TAKEN001']))
+    const service = new Vehicles(store, new QueuedPlatePolicy(['TAKEN001']), new CharacterOwnershipPolicy())
 
     await service.create({
       owner: { characterId: 'char:1' },
@@ -325,5 +332,226 @@ describe('VehiclesService', () => {
         model: 'blista',
       }),
     ).rejects.toThrow(VehiclesError)
+  })
+
+  describe('ownership policy', () => {
+    it('isOwnedBy reflects the character ownership policy', async () => {
+      const store = new InMemoryVehicleStore()
+      const service = new Vehicles(store, new RandomPlatePolicy(), new CharacterOwnershipPolicy())
+
+      const vehicle = await service.create({
+        owner: { characterId: 'char:1', accountId: 'acc:1' },
+        model: 'sultan',
+      })
+
+      expect(service.isOwnedBy(vehicle, { characterId: 'char:1' })).toBe(true)
+      expect(service.isOwnedBy(vehicle, { characterId: 'char:2' })).toBe(false)
+      expect(service.isOwnedBy(vehicle, { accountId: 'acc:1' })).toBe(false)
+    })
+
+    it('isOwnedBy reflects the account ownership policy', async () => {
+      const store = new InMemoryVehicleStore()
+      const service = new Vehicles(store, new RandomPlatePolicy(), new AccountOwnershipPolicy())
+
+      const vehicle = await service.create({
+        owner: { characterId: 'char:1', accountId: 'acc:1' },
+        model: 'sultan',
+      })
+
+      expect(service.isOwnedBy(vehicle, { accountId: 'acc:1' })).toBe(true)
+      expect(service.isOwnedBy(vehicle, { accountId: 'acc:2' })).toBe(false)
+      expect(service.isOwnedBy(vehicle, { characterId: 'char:1' })).toBe(false)
+    })
+
+    it('isOwnedBy reflects the both-match ownership policy', async () => {
+      const store = new InMemoryVehicleStore()
+      const service = new Vehicles(store, new RandomPlatePolicy(), new BothMatchOwnershipPolicy())
+
+      const vehicle = await service.create({
+        owner: { characterId: 'char:1', accountId: 'acc:1' },
+        model: 'sultan',
+      })
+
+      expect(service.isOwnedBy(vehicle, { characterId: 'char:1', accountId: 'acc:1' })).toBe(true)
+      expect(service.isOwnedBy(vehicle, { characterId: 'char:1' })).toBe(false)
+      expect(service.isOwnedBy(vehicle, { accountId: 'acc:1' })).toBe(false)
+      expect(service.isOwnedBy(vehicle, { characterId: 'char:1', accountId: 'acc:2' })).toBe(false)
+    })
+
+    it('listByOwner resolves the character filter under the character policy', async () => {
+      const store = new InMemoryVehicleStore()
+      const service = new Vehicles(store, new RandomPlatePolicy(), new CharacterOwnershipPolicy())
+
+      const mine = await service.create({ owner: { characterId: 'char:1' }, model: 'sultan' })
+      await service.create({ owner: { characterId: 'char:2' }, model: 'blista' })
+
+      const vehicles = await service.listByOwner({ characterId: 'char:1' })
+      expect(vehicles.map((vehicle) => vehicle.id)).toEqual([mine.id])
+    })
+
+    it('listByOwner does not match all vehicles when the resolved owner key is absent', async () => {
+      const store = new InMemoryVehicleStore()
+      const service = new Vehicles(store, new RandomPlatePolicy(), new AccountOwnershipPolicy())
+
+      await service.create({ owner: { characterId: 'char:1' }, model: 'sultan' })
+      await service.create({ owner: { characterId: 'char:2' }, model: 'blista' })
+
+      const vehicles = await service.listByOwner({ characterId: 'char:1' })
+      expect(vehicles).toEqual([])
+    })
+
+    it('listByOwner resolves the account filter under the account policy', async () => {
+      const store = new InMemoryVehicleStore()
+      const service = new Vehicles(store, new RandomPlatePolicy(), new AccountOwnershipPolicy())
+
+      const first = await service.create({
+        owner: { characterId: 'char:1', accountId: 'acc:1' },
+        model: 'sultan',
+      })
+      const second = await service.create({
+        owner: { characterId: 'char:2', accountId: 'acc:1' },
+        model: 'blista',
+      })
+      await service.create({ owner: { accountId: 'acc:2' }, model: 'futo' })
+
+      const vehicles = await service.listByOwner({ characterId: 'char:1', accountId: 'acc:1' })
+      expect(vehicles.map((vehicle) => vehicle.id).sort()).toEqual([first.id, second.id].sort())
+    })
+  })
+
+  describe('setOwner', () => {
+    it('rewrites the character field resolved by the character ownership policy', async () => {
+      const store = new InMemoryVehicleStore()
+      const service = new Vehicles(store, new RandomPlatePolicy(), new CharacterOwnershipPolicy())
+
+      const vehicle = await service.create({
+        owner: { characterId: 'char:1', accountId: 'acc:1' },
+        model: 'sultan',
+      })
+
+      const updated = await service.setOwner(vehicle.id, { characterId: 'char:2' })
+
+      expect(updated.characterId).toBe('char:2')
+      expect(updated.accountId).toBe('acc:1')
+    })
+
+    it('rewrites the account field resolved by the account ownership policy', async () => {
+      const store = new InMemoryVehicleStore()
+      const service = new Vehicles(store, new RandomPlatePolicy(), new AccountOwnershipPolicy())
+
+      const vehicle = await service.create({
+        owner: { characterId: 'char:1', accountId: 'acc:1' },
+        model: 'sultan',
+      })
+
+      const updated = await service.setOwner(vehicle.id, { accountId: 'acc:2' })
+
+      expect(updated.accountId).toBe('acc:2')
+      expect(updated.characterId).toBe('char:1')
+    })
+
+    it('rewrites both fields resolved by the both-match ownership policy', async () => {
+      const store = new InMemoryVehicleStore()
+      const service = new Vehicles(store, new RandomPlatePolicy(), new BothMatchOwnershipPolicy())
+
+      const vehicle = await service.create({
+        owner: { characterId: 'char:1', accountId: 'acc:1' },
+        model: 'sultan',
+      })
+
+      const updated = await service.setOwner(vehicle.id, {
+        characterId: 'char:2',
+        accountId: 'acc:2',
+      })
+
+      expect(updated.characterId).toBe('char:2')
+      expect(updated.accountId).toBe('acc:2')
+    })
+
+    it('leaves the other owner key untouched when the context omits the policy key', async () => {
+      const store = new InMemoryVehicleStore()
+      const service = new Vehicles(store, new RandomPlatePolicy(), new CharacterOwnershipPolicy())
+
+      const vehicle = await service.create({
+        owner: { characterId: 'char:1', accountId: 'acc:1' },
+        model: 'sultan',
+      })
+
+      // Character policy, but the caller only passes an account id: the
+      // character owner must not be wiped.
+      const updated = await service.setOwner(vehicle.id, { accountId: 'acc:2' })
+
+      expect(updated.characterId).toBe('char:1')
+      expect(updated.accountId).toBe('acc:1')
+    })
+
+    it('rewrites only the character key under both-match when only a character is supplied', async () => {
+      const store = new InMemoryVehicleStore()
+      const service = new Vehicles(store, new RandomPlatePolicy(), new BothMatchOwnershipPolicy())
+
+      const vehicle = await service.create({
+        owner: { characterId: 'char:1', accountId: 'acc:1' },
+        model: 'sultan',
+      })
+
+      const updated = await service.setOwner(vehicle.id, { characterId: 'char:2' })
+
+      expect(updated.characterId).toBe('char:2')
+      expect(updated.accountId).toBe('acc:1')
+    })
+
+    it('persists the owner change through the store contract', async () => {
+      const store = new InMemoryVehicleStore()
+      const service = new Vehicles(store, new RandomPlatePolicy(), new CharacterOwnershipPolicy())
+
+      const vehicle = await service.create({ owner: { characterId: 'char:1' }, model: 'sultan' })
+      await service.setOwner(vehicle.id, { characterId: 'char:2' })
+
+      const persisted = await store.getById(vehicle.id)
+      expect(persisted!.characterId).toBe('char:2')
+    })
+
+    it('emits ownerChanged after the write commits', async () => {
+      const store = new InMemoryVehicleStore()
+      const service = new Vehicles(store, new RandomPlatePolicy(), new CharacterOwnershipPolicy())
+
+      const vehicle = await service.create({ owner: { characterId: 'char:1' }, model: 'sultan' })
+
+      let persistedAtEmitTime: Vehicle | null = null
+      const handler = vi.fn(async (event?: { vehicle: Vehicle }) => {
+        persistedAtEmitTime = await store.getById(event!.vehicle.id)
+      })
+
+      VehiclesEvents.once('ownerChanged', handler)
+
+      await service.setOwner(vehicle.id, { characterId: 'char:2' })
+
+      expect(handler).toHaveBeenCalledTimes(1)
+      const payload = handler.mock.calls[0]![0] as { vehicle: Vehicle }
+      expect(payload.vehicle.characterId).toBe('char:2')
+
+      await vi.waitFor(() => expect(persistedAtEmitTime).not.toBeNull())
+      expect(persistedAtEmitTime!.characterId).toBe('char:2')
+    })
+
+    it('raises a typed error when the vehicle does not exist', async () => {
+      const store = new InMemoryVehicleStore()
+      const service = new Vehicles(store, new RandomPlatePolicy(), new CharacterOwnershipPolicy())
+
+      await expect(
+        service.setOwner('veh_unknown', { characterId: 'char:1' }),
+      ).rejects.toThrow(VehiclesError)
+    })
+
+    it('performs no authorization check', async () => {
+      const store = new InMemoryVehicleStore()
+      const service = new Vehicles(store, new RandomPlatePolicy(), new CharacterOwnershipPolicy())
+
+      const vehicle = await service.create({ owner: { characterId: 'char:1' }, model: 'sultan' })
+
+      await expect(
+        service.setOwner(vehicle.id, { characterId: 'char:anyone' }),
+      ).resolves.not.toThrow()
+    })
   })
 })

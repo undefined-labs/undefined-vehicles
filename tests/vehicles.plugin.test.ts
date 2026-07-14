@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PlateGeneratorPolicyContract, VehicleStoreContract } from '../src/shared'
 import { VehiclesModule } from '../src/server/module/vehicles.module'
 import { vehiclesServerPlugin } from '../src/server/plugin/vehicles.plugin'
+import { AccountOwnershipPolicy } from '../src/server/policies/account-ownership.policy'
 
 class FixedPlatePolicy extends PlateGeneratorPolicyContract {
   generatePlate(): string {
@@ -27,6 +28,8 @@ class InMemoryStore extends VehicleStoreContract {
   }
 
   async create(): Promise<void> {}
+
+  async update(): Promise<void> {}
 }
 
 afterEach(() => {
@@ -94,5 +97,34 @@ describe('vehiclesServerPlugin', () => {
     await plugin.install({} as any)
 
     expect(setPlateGeneratorSpy).not.toHaveBeenCalled()
+  })
+
+  it('forwards a custom ownership policy to VehiclesModule', async () => {
+    vi.spyOn(VehiclesModule, 'setStore').mockImplementation(() => undefined)
+    vi.spyOn(VehiclesModule, 'install').mockImplementation(() => undefined)
+    const setOwnershipPolicySpy = vi
+      .spyOn(VehiclesModule, 'setOwnershipPolicy')
+      .mockImplementation(() => undefined)
+
+    const ownershipPolicy = new AccountOwnershipPolicy()
+    const plugin = vehiclesServerPlugin({ store: InMemoryStore, ownershipPolicy })
+
+    await plugin.install({} as any)
+
+    expect(setOwnershipPolicySpy).toHaveBeenCalledWith(ownershipPolicy)
+  })
+
+  it('leaves the default ownership policy in place when none is supplied', async () => {
+    vi.spyOn(VehiclesModule, 'setStore').mockImplementation(() => undefined)
+    vi.spyOn(VehiclesModule, 'install').mockImplementation(() => undefined)
+    const setOwnershipPolicySpy = vi
+      .spyOn(VehiclesModule, 'setOwnershipPolicy')
+      .mockImplementation(() => undefined)
+
+    const plugin = vehiclesServerPlugin({ store: InMemoryStore })
+
+    await plugin.install({} as any)
+
+    expect(setOwnershipPolicySpy).not.toHaveBeenCalled()
   })
 })
