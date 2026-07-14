@@ -3,10 +3,15 @@ import { Vehicle } from '../../shared/domain/vehicle'
 import { VehiclesError } from '../../shared/errors'
 import { VehicleStoreContract } from '../../shared/contracts/vehicle-store.contract'
 import { PlateGeneratorPolicyContract } from '../../shared/contracts/plate-generator-policy.contract'
+import { OwnershipPolicyContract } from '../../shared/contracts/ownership-policy.contract'
 import { createVehicleId } from '../../shared/utils/create-vehicle-id'
-import { VehicleCreateInput, VehicleListFilters } from '../../shared/types/vehicle.types'
+import {
+  OwnerContext,
+  VehicleCreateInput,
+  VehicleListFilters,
+} from '../../shared/types/vehicle.types'
 import { VehicleId } from '../../shared/types/ids'
-import { emitVehiclesCreated } from '../events/vehicles-events'
+import { emitVehiclesCreated, emitVehiclesOwnerChanged } from '../events/vehicles-events'
 
 /**
  * Vehicles domain service.
@@ -22,6 +27,7 @@ export class Vehicles {
   constructor(
     private readonly store: VehicleStoreContract,
     private readonly plateGenerator: PlateGeneratorPolicyContract,
+    private readonly ownershipPolicy: OwnershipPolicyContract,
   ) {}
 
   /**
@@ -62,6 +68,22 @@ export class Vehicles {
   }
 
   /**
+   * Returns vehicles owned by `ownerContext` under the installed ownership
+   * policy, which resolves which owner field(s) the filter operates on.
+   */
+  async listByOwner(ownerContext: OwnerContext): Promise<Vehicle[]> {
+    const filters = this.ownershipPolicy.resolveFilters(ownerContext)
+
+    // An owner context that resolves to no filter keys under the installed
+    // policy owns nothing — never fall through to store.list's match-all.
+    if (Object.keys(filters).length === 0) {
+      return []
+    }
+
+    return this.store.list(filters)
+  }
+
+  /**
    * Returns the vehicle with the given id, or null when it does not exist.
    */
   async getById(vehicleId: VehicleId): Promise<Vehicle | null> {
@@ -73,6 +95,32 @@ export class Vehicles {
    */
   async getByPlate(plate: string): Promise<Vehicle | null> {
     return this.store.getByPlate(plate)
+  }
+
+  /**
+   * Reflects the installed ownership policy: whether `ownerContext` owns
+   * `vehicle` under the configured model (character / account / both).
+   */
+  isOwnedBy(vehicle: Vehicle, ownerContext: OwnerContext): boolean {
+    return this.ownershipPolicy.isOwnedBy(vehicle, ownerContext)
+  }
+
+  /**
+   * Rewrites the owner field(s) resolved by the installed ownership policy
+   * and persists via `store.update`. Emits `vehicles:ownerChanged` after
+   * the write commits.
+   */
+  async setOwner(vehicleId: VehicleId, owner: OwnerContext): Promise<Vehicle> {
+    const vehicle = await this.store.getById(vehicleId)
+    if (!vehicle) {
+      throw new VehiclesError(`Cannot set owner: vehicle "${vehicleId}" does not exist`)
+    }
+
+    vehicle.setOwner(this.ownershipPolicy.resolveOwner(owner))
+
+    await this.store.update(vehicle)
+    emitVehiclesOwnerChanged({ vehicle })
+    return vehicle
   }
 
   /**
