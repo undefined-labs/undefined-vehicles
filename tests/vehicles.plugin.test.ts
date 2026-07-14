@@ -30,6 +30,8 @@ class InMemoryStore extends VehicleStoreContract {
   async create(): Promise<void> {}
 
   async update(): Promise<void> {}
+
+  async delete(): Promise<void> {}
 }
 
 afterEach(() => {

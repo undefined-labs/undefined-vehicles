@@ -51,6 +51,10 @@ class InMemoryVehicleStore extends VehicleStoreContract {
   async update(vehicle: Vehicle): Promise<void> {
     this.vehicles.set(vehicle.id, vehicle)
   }
+
+  async delete(vehicleId: string): Promise<void> {
+    this.vehicles.delete(vehicleId)
+  }
 }
 
 /** Deterministic generator returning the given plates in order. */
@@ -552,6 +556,152 @@ describe('VehiclesService', () => {
       await expect(
         service.setOwner(vehicle.id, { characterId: 'char:anyone' }),
       ).resolves.not.toThrow()
+    })
+  })
+
+  describe('update', () => {
+    it('replaces props wholesale', async () => {
+      const store = new InMemoryVehicleStore()
+      const service = new Vehicles(store, new RandomPlatePolicy(), new CharacterOwnershipPolicy())
+
+      const vehicle = await service.create({
+        owner: { characterId: 'char:1' },
+        model: 'sultan',
+        props: { color: 'red', engine: 1 },
+      })
+
+      const updated = await service.update(vehicle.id, { props: { color: 'blue' } })
+
+      expect(updated.props).toEqual({ color: 'blue' })
+    })
+
+    it('shallow-merges metadata, retaining omitted keys and overwriting provided ones', async () => {
+      const store = new InMemoryVehicleStore()
+      const service = new Vehicles(store, new RandomPlatePolicy(), new CharacterOwnershipPolicy())
+
+      const vehicle = await service.create({
+        owner: { characterId: 'char:1' },
+        model: 'sultan',
+        metadata: { garage: 'pillbox', impounded: false },
+      })
+
+      const updated = await service.update(vehicle.id, { metadata: { garage: 'legion' } })
+
+      expect(updated.metadata).toEqual({ garage: 'legion', impounded: false })
+    })
+
+    it('deletes a metadata key when its value is explicit null', async () => {
+      const store = new InMemoryVehicleStore()
+      const service = new Vehicles(store, new RandomPlatePolicy(), new CharacterOwnershipPolicy())
+
+      const vehicle = await service.create({
+        owner: { characterId: 'char:1' },
+        model: 'sultan',
+        metadata: { garage: 'pillbox', impounded: false },
+      })
+
+      const updated = await service.update(vehicle.id, { metadata: { impounded: null } })
+
+      expect(updated.metadata).toEqual({ garage: 'pillbox' })
+    })
+
+    it('leaves plate unchanged by update', async () => {
+      const store = new InMemoryVehicleStore()
+      const service = new Vehicles(store, new RandomPlatePolicy(), new CharacterOwnershipPolicy())
+
+      const vehicle = await service.create({
+        owner: { characterId: 'char:1' },
+        model: 'sultan',
+        plate: 'ABC12345',
+      })
+
+      const updated = await service.update(vehicle.id, { props: { color: 'blue' } })
+
+      expect(updated.plate).toBe('ABC12345')
+    })
+
+    it('persists the update through the store contract', async () => {
+      const store = new InMemoryVehicleStore()
+      const service = new Vehicles(store, new RandomPlatePolicy(), new CharacterOwnershipPolicy())
+
+      const vehicle = await service.create({ owner: { characterId: 'char:1' }, model: 'sultan' })
+      await service.update(vehicle.id, { props: { color: 'blue' } })
+
+      const persisted = await store.getById(vehicle.id)
+      expect(persisted!.props).toEqual({ color: 'blue' })
+    })
+
+    it('emits updated after the write commits', async () => {
+      const store = new InMemoryVehicleStore()
+      const service = new Vehicles(store, new RandomPlatePolicy(), new CharacterOwnershipPolicy())
+
+      const vehicle = await service.create({ owner: { characterId: 'char:1' }, model: 'sultan' })
+
+      let persistedAtEmitTime: Vehicle | null = null
+      const handler = vi.fn(async (event?: { vehicle: Vehicle }) => {
+        persistedAtEmitTime = await store.getById(event!.vehicle.id)
+      })
+
+      VehiclesEvents.once('updated', handler)
+
+      await service.update(vehicle.id, { props: { color: 'blue' } })
+
+      expect(handler).toHaveBeenCalledTimes(1)
+      const payload = handler.mock.calls[0]![0] as { vehicle: Vehicle }
+      expect(payload.vehicle.props).toEqual({ color: 'blue' })
+
+      await vi.waitFor(() => expect(persistedAtEmitTime).not.toBeNull())
+      expect(persistedAtEmitTime!.props).toEqual({ color: 'blue' })
+    })
+
+    it('raises a typed error when the vehicle does not exist', async () => {
+      const store = new InMemoryVehicleStore()
+      const service = new Vehicles(store, new RandomPlatePolicy(), new CharacterOwnershipPolicy())
+
+      await expect(
+        service.update('veh_unknown', { props: { color: 'blue' } }),
+      ).rejects.toThrow(VehiclesError)
+    })
+  })
+
+  describe('delete', () => {
+    it('removes the vehicle record', async () => {
+      const store = new InMemoryVehicleStore()
+      const service = new Vehicles(store, new RandomPlatePolicy(), new CharacterOwnershipPolicy())
+
+      const vehicle = await service.create({ owner: { characterId: 'char:1' }, model: 'sultan' })
+      await service.delete(vehicle.id)
+
+      await expect(store.getById(vehicle.id)).resolves.toBeNull()
+    })
+
+    it('emits deleted after the write commits', async () => {
+      const store = new InMemoryVehicleStore()
+      const service = new Vehicles(store, new RandomPlatePolicy(), new CharacterOwnershipPolicy())
+
+      const vehicle = await service.create({ owner: { characterId: 'char:1' }, model: 'sultan' })
+
+      let existsAtEmitTime = true
+      const handler = vi.fn(async (event?: { vehicle: Vehicle }) => {
+        existsAtEmitTime = (await store.getById(event!.vehicle.id)) !== null
+      })
+
+      VehiclesEvents.once('deleted', handler)
+
+      await service.delete(vehicle.id)
+
+      expect(handler).toHaveBeenCalledTimes(1)
+      const payload = handler.mock.calls[0]![0] as { vehicle: Vehicle }
+      expect(payload.vehicle.id).toBe(vehicle.id)
+
+      await vi.waitFor(() => expect(existsAtEmitTime).toBe(false))
+    })
+
+    it('raises a typed error when the vehicle does not exist', async () => {
+      const store = new InMemoryVehicleStore()
+      const service = new Vehicles(store, new RandomPlatePolicy(), new CharacterOwnershipPolicy())
+
+      await expect(service.delete('veh_unknown')).rejects.toThrow(VehiclesError)
     })
   })
 })

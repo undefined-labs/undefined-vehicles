@@ -39,6 +39,10 @@ class InMemoryVehicleStore extends VehicleStoreContract {
   async update(vehicle: Vehicle): Promise<void> {
     this.vehicles.set(vehicle.id, vehicle)
   }
+
+  async delete(vehicleId: string): Promise<void> {
+    this.vehicles.delete(vehicleId)
+  }
 }
 
 describe('VehiclesModule', () => {
