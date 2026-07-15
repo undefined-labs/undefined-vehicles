@@ -1,61 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Vehicle } from '../src/shared/domain/vehicle'
-import { VehicleStoreContract } from '../src/shared/contracts/vehicle-store.contract'
 import { VehiclesError } from '../src/shared/errors'
 import { VehiclesEvents } from '../src/server/events/vehicles-events'
 import { PlateGeneratorPolicyContract } from '../src/shared/contracts/plate-generator-policy.contract'
-import { VehicleListFilters } from '../src/shared/types/vehicle.types'
 import { RandomPlatePolicy } from '../src/server/policies/random-plate.policy'
 import { CharacterOwnershipPolicy } from '../src/server/policies/character-ownership.policy'
 import { AccountOwnershipPolicy } from '../src/server/policies/account-ownership.policy'
 import { BothMatchOwnershipPolicy } from '../src/server/policies/both-match-ownership.policy'
 import { Vehicles } from '../src/server/services/vehicles'
-
-class InMemoryVehicleStore extends VehicleStoreContract {
-  private readonly vehicles = new Map<string, Vehicle>()
-
-  async list(filters: VehicleListFilters): Promise<Vehicle[]> {
-    return [...this.vehicles.values()].filter(
-      (vehicle) =>
-        (filters.characterId === undefined || vehicle.characterId === filters.characterId) &&
-        (filters.accountId === undefined || vehicle.accountId === filters.accountId),
-    )
-  }
-
-  async getById(vehicleId: string): Promise<Vehicle | null> {
-    return this.vehicles.get(vehicleId) ?? null
-  }
-
-  async getByPlate(plate: string): Promise<Vehicle | null> {
-    for (const vehicle of this.vehicles.values()) {
-      if (vehicle.plate === plate) {
-        return vehicle
-      }
-    }
-    return null
-  }
-
-  async plateExists(plate: string): Promise<boolean> {
-    for (const vehicle of this.vehicles.values()) {
-      if (vehicle.plate === plate) {
-        return true
-      }
-    }
-    return false
-  }
-
-  async create(vehicle: Vehicle): Promise<void> {
-    this.vehicles.set(vehicle.id, vehicle)
-  }
-
-  async update(vehicle: Vehicle): Promise<void> {
-    this.vehicles.set(vehicle.id, vehicle)
-  }
-
-  async delete(vehicleId: string): Promise<void> {
-    this.vehicles.delete(vehicleId)
-  }
-}
+import { InMemoryVehicleStore } from './in-memory.store'
 
 /** Deterministic generator returning the given plates in order. */
 class QueuedPlatePolicy extends PlateGeneratorPolicyContract {
