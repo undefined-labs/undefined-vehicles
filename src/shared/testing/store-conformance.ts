@@ -74,7 +74,7 @@ export function runStoreConformance(name: string, factory: StoreConformanceFacto
 
       const found = await store.getByPlate('XYZ98765')
       expect(found).not.toBeNull()
-      expect(found!.id).toBe(created.id)
+      expect(found!.serialize()).toEqual(created.serialize())
     })
 
     test('plateExists is true once a vehicle with that plate has been created', async () => {
