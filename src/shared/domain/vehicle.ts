@@ -1,5 +1,5 @@
 import { AccountId, CharacterId, VehicleId } from '../types/ids'
-import { OwnerContext, SerializedVehicle } from '../types/vehicle.types'
+import { OwnerContext, SerializedVehicle, VehicleUpdatePatch } from '../types/vehicle.types'
 
 export interface VehicleProps {
   id: VehicleId
@@ -7,6 +7,8 @@ export interface VehicleProps {
   accountId?: AccountId
   model: string
   plate: string
+  props?: Record<string, unknown>
+  metadata?: Record<string, unknown>
   createdAt: Date
   updatedAt: Date
 }
@@ -24,6 +26,8 @@ export class Vehicle {
   private _accountId?: AccountId
   readonly model: string
   private _plate: string
+  private _props: Record<string, unknown>
+  private _metadata: Record<string, unknown>
   readonly createdAt: Date
   private _updatedAt: Date
 
@@ -33,6 +37,8 @@ export class Vehicle {
     this._accountId = props.accountId
     this.model = props.model
     this._plate = props.plate
+    this._props = props.props ?? {}
+    this._metadata = props.metadata ?? {}
     this.createdAt = new Date(props.createdAt)
     this._updatedAt = new Date(props.updatedAt)
   }
@@ -47,6 +53,14 @@ export class Vehicle {
 
   get plate(): string {
     return this._plate
+  }
+
+  get props(): Record<string, unknown> {
+    return { ...this._props }
+  }
+
+  get metadata(): Record<string, unknown> {
+    return { ...this._metadata }
   }
 
   get updatedAt(): Date {
@@ -75,6 +89,32 @@ export class Vehicle {
     this._updatedAt = new Date()
   }
 
+  /**
+   * Applies an update patch in place and bumps `updatedAt`.
+   * `props`, when present, replaces the stored blob wholesale. `metadata`,
+   * when present, shallow-merges: provided keys overwrite, omitted keys are
+   * retained, and an explicit `null` deletes that key.
+   */
+  patch(patch: VehicleUpdatePatch): void {
+    if (patch.props !== undefined) {
+      this._props = { ...patch.props }
+    }
+
+    if (patch.metadata !== undefined) {
+      const merged = { ...this._metadata }
+      for (const [key, value] of Object.entries(patch.metadata)) {
+        if (value === null) {
+          delete merged[key]
+        } else {
+          merged[key] = value
+        }
+      }
+      this._metadata = merged
+    }
+
+    this._updatedAt = new Date()
+  }
+
   serialize(): SerializedVehicle {
     return {
       id: this.id,
@@ -82,6 +122,8 @@ export class Vehicle {
       accountId: this._accountId,
       model: this.model,
       plate: this._plate,
+      props: this.props,
+      metadata: this.metadata,
       createdAt: this.createdAt.toISOString(),
       updatedAt: this._updatedAt.toISOString(),
     }
@@ -94,6 +136,8 @@ export class Vehicle {
       accountId: serialized.accountId,
       model: serialized.model,
       plate: serialized.plate,
+      props: serialized.props,
+      metadata: serialized.metadata,
       createdAt: new Date(serialized.createdAt),
       updatedAt: new Date(serialized.updatedAt),
     })

@@ -26,6 +26,22 @@ export interface VehicleCreateInput {
   model: string
   /** Honored as-is when supplied; otherwise a unique plate is generated. */
   plate?: string
+  /** Opaque ox_lib properties blob. The library persists it verbatim. */
+  props?: Record<string, unknown>
+  metadata?: Record<string, unknown>
+}
+
+/**
+ * Patch applied by `update`.
+ *
+ * @remarks
+ * `props`, when present, replaces the stored blob wholesale.
+ * `metadata`, when present, shallow-merges: provided keys overwrite,
+ * omitted keys are retained, and an explicit `null` deletes that key.
+ */
+export interface VehicleUpdatePatch {
+  props?: Record<string, unknown>
+  metadata?: Record<string, unknown | null>
 }
 
 export interface SerializedVehicle {
@@ -34,6 +50,8 @@ export interface SerializedVehicle {
   accountId?: AccountId
   model: string
   plate: string
+  props: Record<string, unknown>
+  metadata: Record<string, unknown>
   createdAt: string
   updatedAt: string
 }

@@ -7,3 +7,11 @@ export interface VehiclesCreatedEvent {
 export interface VehiclesOwnerChangedEvent {
   vehicle: Vehicle
 }
+
+export interface VehiclesUpdatedEvent {
+  vehicle: Vehicle
+}
+
+export interface VehiclesDeletedEvent {
+  vehicle: Vehicle
+}

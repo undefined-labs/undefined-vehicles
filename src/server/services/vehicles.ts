@@ -9,9 +9,15 @@ import {
   OwnerContext,
   VehicleCreateInput,
   VehicleListFilters,
+  VehicleUpdatePatch,
 } from '../../shared/types/vehicle.types'
 import { VehicleId } from '../../shared/types/ids'
-import { emitVehiclesCreated, emitVehiclesOwnerChanged } from '../events/vehicles-events'
+import {
+  emitVehiclesCreated,
+  emitVehiclesDeleted,
+  emitVehiclesOwnerChanged,
+  emitVehiclesUpdated,
+} from '../events/vehicles-events'
 
 /**
  * Vehicles domain service.
@@ -50,6 +56,8 @@ export class Vehicles {
       accountId: input.owner.accountId,
       model: input.model,
       plate,
+      props: input.props,
+      metadata: input.metadata,
       createdAt: now,
       updatedAt: now,
     })
@@ -121,6 +129,39 @@ export class Vehicles {
     await this.store.update(vehicle)
     emitVehiclesOwnerChanged({ vehicle })
     return vehicle
+  }
+
+  /**
+   * Applies `patch` to the stored vehicle and persists via `store.update`.
+   * `props` replaces the stored blob wholesale; `metadata` shallow-merges
+   * (an explicit `null` value deletes that key). Plate is immutable through
+   * `update`. Emits `vehicles:updated` after the write commits.
+   */
+  async update(vehicleId: VehicleId, patch: VehicleUpdatePatch): Promise<Vehicle> {
+    const vehicle = await this.store.getById(vehicleId)
+    if (!vehicle) {
+      throw new VehiclesError(`Cannot update: vehicle "${vehicleId}" does not exist`)
+    }
+
+    vehicle.patch(patch)
+
+    await this.store.update(vehicle)
+    emitVehiclesUpdated({ vehicle })
+    return vehicle
+  }
+
+  /**
+   * Removes the vehicle record via `store.delete`.
+   * Emits `vehicles:deleted` after the write commits.
+   */
+  async delete(vehicleId: VehicleId): Promise<void> {
+    const vehicle = await this.store.getById(vehicleId)
+    if (!vehicle) {
+      throw new VehiclesError(`Cannot delete: vehicle "${vehicleId}" does not exist`)
+    }
+
+    await this.store.delete(vehicleId)
+    emitVehiclesDeleted({ vehicle })
   }
 
   /**
