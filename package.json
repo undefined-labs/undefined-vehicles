@@ -26,6 +26,11 @@
       "import": "./dist/shared/index.js",
       "require": "./dist/shared/index.js"
     },
+    "./shared/testing": {
+      "types": "./dist/shared/testing/store-conformance.d.ts",
+      "import": "./dist/shared/testing/store-conformance.js",
+      "require": "./dist/shared/testing/store-conformance.js"
+    },
     "./package.json": "./package.json"
   },
   "scripts": {
@@ -38,7 +43,13 @@
   "peerDependencies": {
     "@open-core/framework": "*",
     "reflect-metadata": "^0.2.2",
-    "tsyringe": "^4.10.0"
+    "tsyringe": "^4.10.0",
+    "vitest": "^4.0.16"
+  },
+  "peerDependenciesMeta": {
+    "vitest": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@citizenfx/server": "2.0.22443-1",
